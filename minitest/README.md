@@ -1,0 +1,1 @@
+简化unittest，assertXXX都使用assert来替代，用简短的代码说明各个部分是如何配合运作
