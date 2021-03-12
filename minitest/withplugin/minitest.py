@@ -1,6 +1,7 @@
 import sys
 import traceback
 import time
+from config import Config
 
 
 class TestLoader(object):
@@ -65,9 +66,9 @@ class TestSuite(object):
             count += test.countTestCases()
         return count
 
-    def run(self, result):
+    def run(self, result, config):
         for test in self:
-            test.run(result)
+            test.run(result, config)
         return result
 
 
@@ -125,13 +126,14 @@ class TestCase(object):
     def countTestCases(self):
         return 1
 
-    def run(self, result):
+    def run(self, result, config):
         result.startTest(self)
 
         testMethod = getattr(self, self._testMethodName)
        
         success = False
-        try:                    
+        try:        
+            config.plugins.beforeTest(test=self)            
             self.setUp()
         except KeyboardInterrupt:
             raise
@@ -155,8 +157,12 @@ class TestCase(object):
             except:
                 result.addError(self, sys.exc_info())
                 success = False
+        
+        config.plugins.afterTest(test=self, result=success)
 
+        config.plugins.beforeResult(result=success)        
         result.finishTest(self)
+        config.plugins.beforeResult(result=success)
 
 
 class TestResult(object):
@@ -178,37 +184,38 @@ class TestResult(object):
         "Called when the given test is about to be run"
         self.testsRun += 1
 
-        print('='*80)
-        print(f'run: {test}')
-        print(test.getDescription())
+        # print('='*80)
+        # print(f'run: {test}')
+        # print(test.getDescription())
 
     def finishTest(self, test):
         pass
 
-    def printStatus(self, status):
-        print('-'*20)
-        print(f'= RESULT: {status} =')
-        print('-'*20)
+    # def printStatus(self, status):
+    #     # print('-'*20)
+    #     # print(f'= RESULT: {status} =')
+    #     # print('-'*20)
+    #     pass
 
     def addError(self, test, err):
         """Called when an error has occurred. 'err' is a tuple of values as
         returned by sys.exc_info().
         """
         self.errors.append((test, self._exc_info_to_string(err, test)))
-        self.printStatus('ERROR')
+        # self.printStatus('ERROR')
         print(self._exc_info_to_string(err, test))
 
     def addFailure(self, test, err):
         """Called when an error has occurred. 'err' is a tuple of values as
         returned by sys.exc_info()."""
         self.failures.append((test, self._exc_info_to_string(err, test)))
-        self.printStatus('FAIL')
+        # self.printStatus('FAIL')
         print(self._exc_info_to_string(err, test))
 
     def addSuccess(self, test):
         "Called when a test has completed successfully"
         self.success.append(test)
-        self.printStatus('SUCCESS')
+        # self.printStatus('SUCCESS')
 
     def _exc_info_to_string(self, err, test):
         """Converts a sys.exc_info()-style tuple of values into a string."""
@@ -223,10 +230,23 @@ class TestResult(object):
 
 
 class TestRunner(object):
-    def run(self, test):
-        result = TestResult()
+    def run(self, test, config):
+        result = TestResult(config)
         result.startTestRun()
-        test.run(result)
+        test.run(result, config)
         result.finishTestRun()
 
         result.summary()
+
+def main(module):
+    # print(sys.argv)
+    conf = Config()
+    conf.config(sys.argv)
+
+    # for k,v in conf.plugins.__dict__.items():
+    #     print(k,v._nonwrappers)
+
+    # loader = TestLoader()
+    testsuite = defaultTestLoader.loadTestsFromModule(module)
+    runner = TestRunner()
+    result = runner.run(testsuite, conf)
