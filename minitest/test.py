@@ -25,7 +25,7 @@ class TestDemo(minitest.TestCase):
 
     def test_minus(self):
         """Test method minus(a, b)"""
-        assert 5-3 == 2
+        assert 5-3 != 2
 
     def test_three(self):
         """Test exception"""

@@ -6,19 +6,25 @@ import time
 class TestLoader(object):
     '''用来识别test_开头的用例，返回一个TestSuite'''
 
-    testMethodPrefix = 'test'
+    testMethodPrefix = 'test_'
 
+    #从类中提取prefix(默认是test_)开头的方法名字
     def getTestCaseNames(self, testCaseClass):
-        """Return a sorted sequence of method names found within testCaseClass
-        """
-        def isTestMethod(attrname, testCaseClass=testCaseClass,
-                         prefix=self.testMethodPrefix):
-            return attrname.startswith(prefix) and \
-                hasattr(getattr(testCaseClass, attrname), '__call__')
-        testFnNames = list(filter(isTestMethod, dir(testCaseClass)))
-        testFnNames.sort()
-        return testFnNames
+        # def isTestMethod(attrname, testCaseClass=testCaseClass,
+        #                  prefix=self.testMethodPrefix):
+        #     return attrname.startswith(prefix) and \
+        #         hasattr(getattr(testCaseClass, attrname), '__call__')
+        # testFnNames = list(filter(isTestMethod, dir(testCaseClass)))
+        # testFnNames.sort()
+        # return testFnNames
 
+        testNames = []
+        for name in dir(testCaseClass):
+            if name.startswith(self.testMethodPrefix) and hasattr(getattr(testCaseClass, name), '__call__'):
+                testNames.append(name)
+        return testNames
+
+    #遍历测试类的属性，找到测试方法并组合为一个testsuite
     def loadTestsFromTestClass(self, testCaseClass):
         """Return a suite of all tests cases contained in testCaseClass"""
         testCaseNames = self.getTestCaseNames(testCaseClass)
@@ -26,6 +32,7 @@ class TestLoader(object):
         #map(testCaseClass, testCaseNames) 相当于调用testCaseClass(testCaseName)生成一个TestCase类，__init__定义在基类TestCase中
         return testSuite
 
+    #遍历模块，找TestCase子类并加载到testsuite中
     def loadTestsFromModule(self, module, use_load_tests=True):
         """Return a suite of all tests cases contained in the given module"""
         tests = []
@@ -73,8 +80,6 @@ class TestSuite(object):
 
 class TestCase(object):
 
-    _classSetuped = False
-
     def __init__(self, methodName):
         """Create an instance of the class that will use the named test
            method when executed. Raises a ValueError if the instance does
@@ -96,22 +101,13 @@ class TestCase(object):
         "Hook method for deconstructing the test fixture after testing it."
         pass
 
-    @classmethod
-    def setUpClass(cls):
-        "Hook method for setting up class fixture before running tests in the class."
+    # @classmethod
+    # def setUpClass(cls):
+    #     "Hook method for setting up class fixture before running tests in the class."
 
-    @classmethod
-    def tearDownClass(cls):
-        "Hook method for deconstructing the class fixture after running all tests in the class."
-
-    def getDescription(self):
-        """Returns a one-line description of the test, or None if no
-        description has been provided.
-
-        The default implementation of this method returns the first line of
-        the specified test method's docstring.
-        """
-        return self._testMethodDoc
+    # @classmethod
+    # def tearDownClass(cls):
+    #     "Hook method for deconstructing the class fixture after running all tests in the class."
 
     def id(self):
         return "%s.%s" % (self.__class__, self._testMethodName)
@@ -155,6 +151,8 @@ class TestCase(object):
             except:
                 result.addError(self, sys.exc_info())
                 success = False
+        finally:
+            result.printStatus(success)
 
         result.finishTest(self)
 
@@ -166,60 +164,60 @@ class TestResult(object):
         self.errors = []
         self.testsRun = 0
 
-    # run before all tests start
+    #在所有测试开始前运行且只运行一次
     def startTestRun(self):
         self.startTime = time.time()
     
-    # run after all tests finish
+    #在所有测试结束后运行且只运行一次
     def finishTestRun(self):
         self.stopTime = time.time()
 
+    #在每个测试开始前运行
     def startTest(self, test):
-        "Called when the given test is about to be run"
         self.testsRun += 1
 
         print('='*80)
         print(f'run: {test}')
-        print(test.getDescription())
 
+    #在每个测试结束后运行
     def finishTest(self, test):
         pass
 
-    def printStatus(self, status):
+    def printStatus(self, success):
+        status = 'SUCCESS' if success else 'FAIL'            
         print('-'*20)
         print(f'= RESULT: {status} =')
-        print('-'*20)
 
     def addError(self, test, err):
-        """Called when an error has occurred. 'err' is a tuple of values as
-        returned by sys.exc_info().
-        """
-        self.errors.append((test, self._exc_info_to_string(err, test)))
-        self.printStatus('ERROR')
-        print(self._exc_info_to_string(err, test))
+        self.errors.append((test, err))
 
     def addFailure(self, test, err):
-        """Called when an error has occurred. 'err' is a tuple of values as
-        returned by sys.exc_info()."""
-        self.failures.append((test, self._exc_info_to_string(err, test)))
-        self.printStatus('FAIL')
-        print(self._exc_info_to_string(err, test))
+        self.failures.append((test, err))
 
     def addSuccess(self, test):
-        "Called when a test has completed successfully"
         self.success.append(test)
-        self.printStatus('SUCCESS')
 
-    def _exc_info_to_string(self, err, test):
+    def _exc_info_to_string(self, err):
         """Converts a sys.exc_info()-style tuple of values into a string."""
         exctype, value, tb = err
         msgLines = traceback.format_exception(exctype, value, tb)
-        return ''.join(msgLines) 
+        return ''.join(msgLines)
+
+    def printErrors(self):
+        print('='*80)
+        for test, err in self.errors:
+            print(f'{test}')
+            print('-'*80)
+            print(self._exc_info_to_string(err))
+        for test, err in self.failures:
+            print(f'{test}')
+            print('-'*80)
+            print(self._exc_info_to_string(err))
 
     def summary(self):
         timeTaken = self.stopTime - self.startTime
         print('='*80)
-        print(f'run {self.testsRun} in {timeTaken:.2f} secondes, [success:{len(self.success)} fail:{len(self.failures)} error:{len(self.errors)}]')
+        print(f'run {self.testsRun} tests in {timeTaken:.2f} secondes, success:{len(self.success)} fail:{len(self.failures)} error:{len(self.errors)}')
 
 
 class TestRunner(object):
@@ -229,4 +227,5 @@ class TestRunner(object):
         test.run(result)
         result.finishTestRun()
 
+        result.printErrors()
         result.summary()
